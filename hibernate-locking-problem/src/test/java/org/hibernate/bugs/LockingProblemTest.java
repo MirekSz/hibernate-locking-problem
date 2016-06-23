@@ -8,6 +8,7 @@ import org.hibernate.LockMode;
 import org.hibernate.Session;
 import org.hibernate.bugs.model.Operator;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -15,7 +16,7 @@ import org.junit.Test;
  * This template demonstrates how to develop a test case for Hibernate ORM,
  * using the Java Persistence API.
  */
-public class JPAUnitTestCase {
+public class LockingProblemTest {
 
 	private EntityManagerFactory entityManagerFactory;
 
@@ -29,22 +30,27 @@ public class JPAUnitTestCase {
 		entityManagerFactory.close();
 	}
 
-	// Entities are auto-discovered, so just add them anywhere on class-path
-	// Add your tests, using standard JUnit.
 	@Test
-	public void hhh123Test() throws Exception {
+	public void shouldLockOnlyOneEntity() throws Exception {
+		//given
 		EntityManager entityManager = entityManagerFactory.createEntityManager();
 		addTwoOperators(entityManager);
-		
 		entityManager.clear();
-		entityManager.getTransaction().begin();
-
-		Session session = (Session) entityManager.getDelegate();
-		Operator mikeSimpleLoad = (Operator) session.load(Operator.class, 1L); //no sql simple proxy crreation
 		
+		
+		//when
+		entityManager.getTransaction().begin();
+		Session session = (Session) entityManager.getDelegate();
+		
+		Operator mikeSimpleLoad = (Operator) session.load(Operator.class, 1L); //no sql simple proxy crreation
 		Operator johnLoadWithLock = (Operator) session.load(Operator.class, 2L, LockMode.PESSIMISTIC_WRITE); 
 		// this produces in console select operator0_.id as id1_0_0_, operator0_.name as name2_0_0_ from Operator operator0_ where operator0_.id in (?, ?) for update
-
+		
+		
+		//then
+		Assert.assertEquals( LockMode.PESSIMISTIC_WRITE,session.getCurrentLockMode(johnLoadWithLock));
+		Assert.assertEquals("This entity should't be lock", LockMode.NONE,session.getCurrentLockMode(mikeSimpleLoad));
+		
 		entityManager.getTransaction().commit();
 		entityManager.close();
 	}
